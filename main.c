@@ -157,13 +157,19 @@ int main(int argc, char* argv[]){
         int indice = centers_indices[j]; // índice do array de índices de pontos
         int indice_comeco = indice * dim_pontos; // ínndice de ínicio
 
-        for(k = 0, i = indice_comeco; i < indice_comeco + dim_pontos; k++, i++)
+        printf("centroide[%d] = ", j);
+        for(k = 0, i = indice_comeco; i < indice_comeco + dim_pontos; k++, i++){
             centers[j * dim_pontos + k] = pontos[i];
+            printf("%.6f ", centers[j * dim_pontos + k]);
+        } printf("\n");
     }
 
+    // array onde cada inteiro representa o centróide mais próximo do ponto de mesma posição
+    int* pontos_centroides;
     while(1){
-        // array onde cada inteiro representa o centróide mais próximo do ponto de mesma posição
-        int* pontos_centroides = malloc(sizeof(int) * qtde_pontos);
+        /*ASSOCIAR CADA PONTO AO SEU CENTRÓIDE MAIS PRÓXIMO*/
+
+        pontos_centroides = malloc(sizeof(int) * qtde_pontos);
         for(i = 0; i < qtde_pontos; i++){
             int menor_centroide = centroide_mais_proximo(i * dim_pontos, dim_pontos, qtde_clusters, centers, pontos);
             printf("ponto[%ld] = centroide[%d]\n", i, menor_centroide);
@@ -171,14 +177,17 @@ int main(int argc, char* argv[]){
         }
 
 
+        /*CALCULAR OS NOVOS CENTRÓIDES*/
+
         // array dos novos centróides
         float* new_centers = (float*) calloc(qtde_clusters * dim_pontos, sizeof(float));
         // array de quantidade de pontos por centróide
         int* qtde_pontos_centroide = (int*) calloc(qtde_clusters, sizeof(int));
 
+        int centroide_proximo;
         // gerando a soma e quantidade de pontos por centróide
         for(i = 0; i < qtde_pontos; i++){
-            int centroide_proximo = pontos_centroides[i];
+            centroide_proximo = pontos_centroides[i];
             qtde_pontos_centroide[centroide_proximo]++;
             for(j = centroide_proximo * dim_pontos, k = i * dim_pontos; j < (centroide_proximo + 1) * dim_pontos, k < (i + 1) * dim_pontos; j++, k++){
                 new_centers[j] += pontos[k];
@@ -189,6 +198,8 @@ int main(int argc, char* argv[]){
             for(j = i * dim_pontos; j < (i + 1) * dim_pontos; j++)
                 new_centers[j] = new_centers[j] / qtde_pontos_centroide[i];
         }
+
+        /*VERIFICAR SE OS CENTRÓIDES MUDARAM*/
 
         achou = 0; // registra se encontrou valores diferentes
         for(i = 0; i < qtde_clusters; i++){
@@ -201,8 +212,12 @@ int main(int argc, char* argv[]){
         if (!achou){
             break;
         }
-        break;
-    }
+        else {
+            centers = new_centers;
+        }
+        printf("etapa\n");
+    }  
+
     free(pontos);
     free(centers);
     return 0;
