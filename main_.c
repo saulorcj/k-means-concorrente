@@ -18,6 +18,33 @@
 }
 #endif
 
+int bloqueadas = 0, acabou =0, calloc_feito = 0;//acabou é usada como bool, determina se terminou a clusterização
+                              //Se não houve mudança entre os centróides, então acabou vai pra 1
+                              //na thread 0 e todas as threads, ao ver isto, dão break;
+                              //calloc_feito é pra saber se o ponteiro qtde_pontos_centroide
+                              //já foi todo para zero por alguma thread
+
+pthread_mutex_t x_mutex, y_mutex; //x é o da barreira, y é o da exclusão mútua pro qtde_ponts_centroide
+pthread_cond_t x_cond;
+int* qtde_pontos_centroide;
+float* new_centroides; //cada tread vai colocar as somas e depois dividir nesse vetor
+
+//Barreira
+void barreira(int nthreads) {
+    pthread_mutex_lock(&x_mutex); //inicio secao critica
+    if (bloqueadas == (nthreads-1)) { 
+      //ultima thread a chegar na barreira
+      pthread_cond_broadcast(&x_cond);
+      bloqueadas=0;
+    } else {
+      bloqueadas++;
+      pthread_cond_wait(&x_cond, &x_mutex);
+    }
+    pthread_mutex_unlock(&x_mutex); //fim secao critica
+}
+
+
+
 float* lePontosBinario(char *arquivo, long int* qtde_pontos, int* dim_pontos){
     // para iteração
     long int i;
@@ -140,7 +167,7 @@ void *T(void* arg){
     long int qtde_pontos = args->qtde_pontos;
     // quantidade de centróides
     int qtde_centroides = args->qtde_centroides;
-    // quantidade de threads
+    // quantidade de threads 
     int qtde_threads = args->qtde_threads;
     // pontos
     float* pontos = args->pontos;
@@ -155,23 +182,104 @@ void *T(void* arg){
     // índice do menor centróide
     int menor_centroide;
 
+    int achou=0; //pra saber se achou centroide diferente no final
+
     while(1){
+
+        if(acabou)
+            break;
+
         /*RELACIONA CADA PONTO AO SEU CENTRÓIDE MAIS PRÓXIMO*/
 
-        pontos_centroides = malloc(sizeof(int) * qtde_pontos);
-        for(i = 0; i < qtde_pontos; i++){
+        
+        for(i = id; i < qtde_pontos; i+= qtde_threads){
             menor_centroide = centroide_mais_proximo(i * dimensao, dimensao, qtde_centroides, centroides_anterior, pontos);
             //printf("ponto[%ld] = centroide[%d]\n", i, menor_centroide);
             pontos_centroides[i] = menor_centroide;
         }
 
         /*BARREIRA*/
+        barreira(qtde_threads);
+
+
+        pthread_mutex_lock(&y_mutex);
+        if(calloc_feito) //não precisa fazer nada
+            pthread_mutex_unlock(&y_mutex);    
+        else{
+            qtde_pontos_centroide = (int*) calloc(qtde_centroides, sizeof(int));//é global, por isso o cuidado
+            calloc_feito = 1;
+            pthread_mutex_unlock(&y_mutex);
+        }
         /*CALCULA SOMA E QUANTIDADE DOS PONTOS PARA CADA CLUSTER*/
+        // gerando a soma e quantidade de pontos por centróide
+        
+
+        centroides_posterior = (float*) calloc(qtde_centroides*dimensao, sizeof(float));
+
+        for(i = id; i < qtde_pontos; i+= qtde_threads){
+            centroide_proximo = pontos_centroides[i];
+            pthread_mutex_lock(&y_mutex);
+            qtde_pontos_centroide[centroide_proximo]++;
+            pthread_mutex_unlock(&y_mutex);            
+
+            for(long long int j = centroide_proximo * dimensao, long long int k = i * dimensao; j < (centroide_proximo + 1) * dimensao, k < (i + 1) * dimensao; j++, k++){
+                centroides_posterior[j] += pontos[k];
+            }
+
+            //pthread_mutex_unlock(&y_mutex);
+        }
+
+        //soma no vetor global:
+        pthread_mutex_lock(&y_mutex);
+        for(i=0;i<qtde_centroides*dimensao;i++){
+            new_centroides[i] += centroides_posterior[i];
+        }
+        pthread_mutex_unlock(&y_mutex);
+
+
         /*BARREIRA*/
+        barreira(qtde_threads);  
+        calloc_feito = 0 //reseta pra próxima iteração
+        //até tem condição de corrida, mas todas estão setando pra 0 então não tem problema
+
+
         /*T1 CALCULA OS CENTRÓIDES E REGISTRA SE HOUVE MUDANÇA*/
+        // dividindo a soma pela quantidade de pontos
+
+        if(id==0){
+            achou = 0; // registra se encontrou valores diferentes
+            for(i = 0; i < qtde_centroides; i++){
+                for(int j = i * dimensao; j < (i + 1) * dimensao; j++)
+                    new_centroides[j] = new_centroides[j] / qtde_pontos_centroide[i];
+
+                    if(fabs(new_centroides[j] - centroides_anterior[j]) > 1e-10){
+                        achou = 1;
+                    }
+
+            }
+
+            free(qtde_pontos_centroide);
+
+            if (!achou){
+                acabou =1;
+            }
+  
+
+
+        }
+        
         /*BARREIRA*/
+        barreira(qtde_threads);
+        //os que estou dando free não serão mais usados neste loop, e serão realocados depois
+        free(centroides_posterior);
+        free(centroides_anterior);
+        centroides_anterior = new_centroides;//pra próxima iteração 
+        
+
         /*CASO OS CENTRÓIDES NÃO TENHAM MUDADO, LOOP É INTERROMPIDO*/
-        break;
+        //mas verifico no começo do loop
+
+        
     }
     pthread_exit(NULL);
 }
@@ -185,6 +293,11 @@ int main(int argc, char* argv[]){
     }
     // VARIÁVEIS DE ITERAÇÃO
     int i;
+
+    //VARIÁVEIS DA BARREIRA
+    pthread_mutex_init(&x_mutex, NULL);
+    pthread_mutex_init(&y_mutex, NULL);
+    pthread_cond_init (&x_cond, NULL);
 
     // VARIÁVEIS PRINCIPAIS
     // nome do arquivo
@@ -212,6 +325,9 @@ int main(int argc, char* argv[]){
     pontos = lePontosBinario(arquivo, &qtde_pontos, &dimensao);
     if (pontos == NULL)
         return 2;
+
+    pontos_centroides = malloc(sizeof(int) * qtde_pontos);
+    new_centroides = (float*) calloc(qtde_centroides*dimensao, sizeof(float));//global;compartilhado pelas threads
 
     centroides = malloc(sizeof(float) * qtde_centroides * dimensao);
     // usando os primeiros pontos como centróides
