@@ -18,11 +18,14 @@
 }
 #endif
 
-int bloqueadas = 0, acabou =0, calloc_feito = 0;//acabou é usada como bool, determina se terminou a clusterização
-                              //Se não houve mudança entre os centróides, então acabou vai pra 1
-                              //na thread 0 e todas as threads, ao ver isto, dão break;
-                              //calloc_feito é pra saber se o ponteiro qtde_pontos_centroide
-                              //já foi todo para zero por alguma thread
+/*
+acabou é usada como bool, determina se terminou a clusterização
+Se não houve mudança entre os centróides, então acabou vai pra 1
+na thread 0 e todas as threads, ao ver isto, dão break;
+calloc_feito é pra saber se o ponteiro qtde_pontos_centroide
+já foi todo para zero por alguma thread
+*/
+int bloqueadas = 0, acabou = 0, calloc_feito = 0;
 
 pthread_mutex_t x_mutex, y_mutex; //x é o da barreira, y é o da exclusão mútua pro qtde_ponts_centroide
 pthread_cond_t x_cond;
@@ -32,7 +35,7 @@ float* new_centroides; //cada tread vai colocar as somas e depois dividir nesse 
 //Barreira
 void barreira(int nthreads) {
     pthread_mutex_lock(&x_mutex); //inicio secao critica
-    if (bloqueadas == (nthreads-1)) { 
+    if (bloqueadas == (nthreads - 1)) { 
       //ultima thread a chegar na barreira
       pthread_cond_broadcast(&x_cond);
       bloqueadas=0;
@@ -159,7 +162,7 @@ void *T(void* arg){
     long int i;
 
     // VARIÁVEIS PRINCIPAIS
-    // id ad thread
+    // id da thread
     int id = args->id;
     // dimensão dos pontos
     int dimensao = args->dimensao;
@@ -181,8 +184,9 @@ void *T(void* arg){
     // VARIÁVEIS TEMPORÁRIAS
     // índice do menor centróide
     int menor_centroide;
-
-    int achou=0; //pra saber se achou centroide diferente no final
+    int centroide_proximo;
+    //pra saber se achou centroide diferente no final
+    int achou;
 
     while(1){
 
@@ -214,15 +218,15 @@ void *T(void* arg){
         // gerando a soma e quantidade de pontos por centróide
         
 
-        centroides_posterior = (float*) calloc(qtde_centroides*dimensao, sizeof(float));
+        centroides_posterior = (float*) calloc(qtde_centroides * dimensao, sizeof(float));
 
         for(i = id; i < qtde_pontos; i+= qtde_threads){
             centroide_proximo = pontos_centroides[i];
             pthread_mutex_lock(&y_mutex);
             qtde_pontos_centroide[centroide_proximo]++;
-            pthread_mutex_unlock(&y_mutex);            
+            pthread_mutex_unlock(&y_mutex);
 
-            for(long long int j = centroide_proximo * dimensao, long long int k = i * dimensao; j < (centroide_proximo + 1) * dimensao, k < (i + 1) * dimensao; j++, k++){
+            for(long long int j = centroide_proximo * dimensao, k = i * dimensao; j < (centroide_proximo + 1) * dimensao, k < (i + 1) * dimensao; j++, k++){
                 centroides_posterior[j] += pontos[k];
             }
 
@@ -239,7 +243,7 @@ void *T(void* arg){
 
         /*BARREIRA*/
         barreira(qtde_threads);  
-        calloc_feito = 0 //reseta pra próxima iteração
+        calloc_feito = 0; //reseta pra próxima iteração
         //até tem condição de corrida, mas todas estão setando pra 0 então não tem problema
 
 
@@ -249,23 +253,18 @@ void *T(void* arg){
         if(id==0){
             achou = 0; // registra se encontrou valores diferentes
             for(i = 0; i < qtde_centroides; i++){
-                for(int j = i * dimensao; j < (i + 1) * dimensao; j++)
+                for(int j = i * dimensao; j < (i + 1) * dimensao; j++){
                     new_centroides[j] = new_centroides[j] / qtde_pontos_centroide[i];
 
-                    if(fabs(new_centroides[j] - centroides_anterior[j]) > 1e-10){
+                    if(fabs(new_centroides[j] - centroides_anterior[j]) > 1e-10)
                         achou = 1;
-                    }
-
+                }
             }
 
             free(qtde_pontos_centroide);
 
-            if (!achou){
+            if (!achou)
                 acabou =1;
-            }
-  
-
-
         }
         
         /*BARREIRA*/
@@ -278,8 +277,6 @@ void *T(void* arg){
 
         /*CASO OS CENTRÓIDES NÃO TENHAM MUDADO, LOOP É INTERROMPIDO*/
         //mas verifico no começo do loop
-
-        
     }
     pthread_exit(NULL);
 }
