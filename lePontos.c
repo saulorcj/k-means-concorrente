@@ -32,7 +32,7 @@ int main(int argc, char* argv[]){
     // le quantidade de pontos
     ret = fread(&qtde_pontos, sizeof(long int), 1, descritorArquivo);
     if(!ret) {
-       fprintf(stderr, "Erro de leitura das dimensoes da matriz arquivo \n");
+       fprintf(stderr, "Erro de leitura da quantidade de pontos da matriz arquivo \n");
        return 3;
     }
     // le dimensão dos pontos

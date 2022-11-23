@@ -195,7 +195,6 @@ void *T(void* arg){
 
         /*RELACIONA CADA PONTO AO SEU CENTRÓIDE MAIS PRÓXIMO*/
 
-        
         for(i = id; i < qtde_pontos; i+= qtde_threads){
             menor_centroide = centroide_mais_proximo(i * dimensao, dimensao, qtde_centroides, centroides_anterior, pontos);
             //printf("ponto[%ld] = centroide[%d]\n", i, menor_centroide);
@@ -217,7 +216,6 @@ void *T(void* arg){
         /*CALCULA SOMA E QUANTIDADE DOS PONTOS PARA CADA CLUSTER*/
         // gerando a soma e quantidade de pontos por centróide
         
-
         centroides_posterior = (float*) calloc(qtde_centroides * dimensao, sizeof(float));
 
         for(i = id; i < qtde_pontos; i+= qtde_threads){
@@ -265,16 +263,19 @@ void *T(void* arg){
 
             if (!achou)
                 acabou =1;
+            
+            if (!acabou){
+                for(int k = 0; k < qtde_centroides * dimensao; k++){
+                    centroides_anterior[k] = new_centroides[k];//pra próxima iteração 
+                    new_centroides[k] = 0;
+                }
+            }
         }
         
         /*BARREIRA*/
         barreira(qtde_threads);
         //os que estou dando free não serão mais usados neste loop, e serão realocados depois
         free(centroides_posterior);
-        free(centroides_anterior);
-        centroides_anterior = new_centroides;//pra próxima iteração 
-        
-
         /*CASO OS CENTRÓIDES NÃO TENHAM MUDADO, LOOP É INTERROMPIDO*/
         //mas verifico no começo do loop
     }
@@ -284,12 +285,12 @@ void *T(void* arg){
 int main(int argc, char* argv[]){
 
     // validando entrada
-    if(argc < 4){
-        fprintf(stderr, "Digite: %s <arquivo entrada> <qtde clusters> <qtde threads>\n", argv[0]);
+    if(argc < 5){
+        fprintf(stderr, "Digite: %s <arquivo entrada> <qtde clusters> <qtde threads> <arquivo saida>\n", argv[0]);
         return 1;
     }
     // VARIÁVEIS DE ITERAÇÃO
-    int i;
+    int i, j;
 
     //VARIÁVEIS DA BARREIRA
     pthread_mutex_init(&x_mutex, NULL);
@@ -310,7 +311,7 @@ int main(int argc, char* argv[]){
     // quantidade de threads
     int qtde_threads = atoi(argv[3]);
     // quantidade de pontos
-    int qtde_pontos;
+    long int qtde_pontos;
     // dimensão dos pontos
     int dimensao;
 
@@ -318,6 +319,15 @@ int main(int argc, char* argv[]){
     pthread_t thread_id[qtde_threads];
     // argumentos de entrada para as threads
     t_Args *args;
+
+    FILE* descritor;
+    size_t ret;
+
+    descritor = fopen(argv[4], "wb");
+    if (!descritor){
+        fprintf(stderr, "Erro de abertura do arquivo de saída\n");
+        return 2;
+    }
 
     pontos = lePontosBinario(arquivo, &qtde_pontos, &dimensao);
     if (pontos == NULL)
@@ -355,10 +365,35 @@ int main(int argc, char* argv[]){
         }
     }
 
-    /*ESCRITA NO ARQUIVO*/
+    // escreve quantidade de pontos
+    ret = fwrite(&qtde_pontos, sizeof(long int), 1, descritor);
+    // escreve quantidade de centróides
+    ret = fwrite(&qtde_centroides, sizeof(int), 1, descritor);
+    // escreve dimensão
+    ret = fwrite(&dimensao, sizeof(int), 1, descritor);
+    // escreve os centróides
+    ret = fwrite(centroides, sizeof(float), qtde_centroides * dimensao, descritor);
+    // escreve o índice dos centróides por ponto
+    ret = fwrite(pontos_centroides, sizeof(int), qtde_pontos, descritor);
 
+    /*DEBUG*/
+    /*
+    printf("centroides\n");
+    for(int k = 0; k < qtde_centroides; k++){
+        printf("centroide[%d] = ", k);
+        for(int j = k * dimensao; j < (k + 1) * dimensao; j++){
+            printf("%.6f ", new_centroides[j]);
+        } printf("\n");
+    }
+    printf("pontos_centroides\n");
+    for(i = 0; i < qtde_pontos; i++){
+        //menor_centroide = centroide_mais_proximo(i * dimensao, dimensao, qtde_centroides, centroides_anterior, pontos);
+        printf("ponto[%d] = centroide[%d]\n", i, pontos_centroides[i]);
+        //pontos_centroides[i] = menor_centroide;
+    }*/
+
+    /*ESCRITA NO ARQUIVO*/
     free(pontos);
-    free(arquivo);
     free(centroides);
     free(pontos_centroides);
     return 0;
