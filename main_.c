@@ -98,12 +98,12 @@ float* lePontosBinario(char *arquivo, long int* qtde_pontos, int* dim_pontos){
     }
 
     // imprime os pontos
-    fprintf(stdout, "Pontos:\n");
+    /*fprintf(stdout, "Pontos:\n");
     for(i = 0; i < qtde_numeros; i += (*dim_pontos)) {
         for(j = i; j < i + (*dim_pontos); j++){
             fprintf(stdout, "%.6f ", pontos[j]);
         } fprintf(stdout, "\n");
-    }
+    }*/
 
     //finaliza o uso das variaveis
     fclose(descritorArquivo);
@@ -332,12 +332,25 @@ int main(int argc, char* argv[]){
         return 2;
     }
 
+    // VARIÁVEIS DE TEMPORIZAÇÃO
+    double start, finish, elapsed;
+    
+    GET_TIME(start);
+
     pontos = lePontosBinario(arquivo, &qtde_pontos, &dimensao);
     if (pontos == NULL)
         return 2;
 
     pontos_centroides = malloc(sizeof(int) * qtde_pontos);
     new_centroides = (float*) calloc(qtde_centroides*dimensao, sizeof(float));//global;compartilhado pelas threads
+    
+    GET_TIME(finish);
+
+    elapsed = finish - start;
+
+    printf("Leitura: %e segundos!\n", elapsed);
+
+    GET_TIME(start);
 
     centroides = malloc(sizeof(float) * qtde_centroides * dimensao);
     // usando os primeiros pontos como centróides
@@ -368,6 +381,14 @@ int main(int argc, char* argv[]){
         }
     }
 
+    GET_TIME(finish);
+
+    elapsed = finish - start;
+
+    printf("Processamento: %e segundos!\n", elapsed);
+
+    GET_TIME(start);
+
     // escreve quantidade de pontos
     ret = fwrite(&qtde_pontos, sizeof(long int), 1, descritor);
     fprintf(descritorTXT, "%ld\n", qtde_pontos);
@@ -391,6 +412,12 @@ int main(int argc, char* argv[]){
     for(i = 0; i <  qtde_pontos; i++){
         fprintf(descritorTXT, "%d\n", pontos_centroides[i]);
     }
+
+    GET_TIME(finish);
+
+    elapsed = finish - start;
+
+    printf("Escrita: %e segundos!\n", elapsed);
 
     /*DEBUG*/
     /*
