@@ -285,12 +285,13 @@ void *T(void* arg){
 int main(int argc, char* argv[]){
 
     // validando entrada
-    if(argc < 5){
-        fprintf(stderr, "Digite: %s <arquivo entrada> <qtde clusters> <qtde threads> <arquivo saida>\n", argv[0]);
+    if(argc < 6){
+        fprintf(stderr, "Digite: %s <arquivo entrada> <qtde clusters> <qtde threads> <arquivo saida bin> <arquivo saida txt>\n", argv[0]);
         return 1;
     }
     // VARIÁVEIS DE ITERAÇÃO
-    int i, j;
+    long int i;
+    int j;
 
     //VARIÁVEIS DA BARREIRA
     pthread_mutex_init(&x_mutex, NULL);
@@ -320,11 +321,13 @@ int main(int argc, char* argv[]){
     // argumentos de entrada para as threads
     t_Args *args;
 
+    FILE* descritorTXT;
     FILE* descritor;
     size_t ret;
 
+    descritorTXT = fopen(argv[5], "w");
     descritor = fopen(argv[4], "wb");
-    if (!descritor){
+    if ((!descritor) || (!descritorTXT)){
         fprintf(stderr, "Erro de abertura do arquivo de saída\n");
         return 2;
     }
@@ -367,14 +370,27 @@ int main(int argc, char* argv[]){
 
     // escreve quantidade de pontos
     ret = fwrite(&qtde_pontos, sizeof(long int), 1, descritor);
+    fprintf(descritorTXT, "%ld\n", qtde_pontos);
     // escreve quantidade de centróides
     ret = fwrite(&qtde_centroides, sizeof(int), 1, descritor);
+    fprintf(descritorTXT, "%d\n", qtde_centroides);
     // escreve dimensão
     ret = fwrite(&dimensao, sizeof(int), 1, descritor);
+    fprintf(descritorTXT, "%d\n", dimensao);
     // escreve os centróides
+    int aux;
     ret = fwrite(centroides, sizeof(float), qtde_centroides * dimensao, descritor);
+    for(i = 0; i < qtde_centroides; i++){
+        fprintf(descritorTXT, "%f", centroides[i]);
+        for(aux = 1; aux < dimensao; aux++){
+            fprintf(descritorTXT, " %f", centroides[i * dimensao + aux]);
+        } fprintf(descritorTXT, "\n");
+    }
     // escreve o índice dos centróides por ponto
     ret = fwrite(pontos_centroides, sizeof(int), qtde_pontos, descritor);
+    for(i = 0; i <  qtde_pontos; i++){
+        fprintf(descritorTXT, "%d\n", pontos_centroides[i]);
+    }
 
     /*DEBUG*/
     /*
@@ -393,6 +409,8 @@ int main(int argc, char* argv[]){
     }*/
 
     /*ESCRITA NO ARQUIVO*/
+    fclose(descritor);
+    fclose(descritorTXT);
     free(pontos);
     free(centroides);
     free(pontos_centroides);
