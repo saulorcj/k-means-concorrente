@@ -402,7 +402,7 @@ int main(int argc, char* argv[]){
     int aux;
     ret = fwrite(centroides, sizeof(float), qtde_centroides * dimensao, descritor);
     for(i = 0; i < qtde_centroides; i++){
-        fprintf(descritorTXT, "%f", centroides[i]);
+        fprintf(descritorTXT, "%f", centroides[i*dimensao]);
         for(aux = 1; aux < dimensao; aux++){
             fprintf(descritorTXT, " %f", centroides[i * dimensao + aux]);
         } fprintf(descritorTXT, "\n");
